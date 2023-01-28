@@ -73,7 +73,9 @@ class WikiRacer:
 
             # Создаем новый цикл событий и ждем пока он выполниться
             loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.create_tasks(list_articles))
+            loop.create_task(self.create_tasks(list_articles))
+            loop.run_forever()
+
 
     async def create_tasks(self, list_articles):
         # Проходим по списку статей из БД и переключаем контекст на другу корутину
@@ -112,11 +114,15 @@ class WikiRacer:
         quantity_links = len(internal_article_list)
         db_alchemy.update_outbound_links(name=article, quantity=quantity_links)
 
+        # Если финиш в списке ссылок, записываем его в БД и закрываем event loop
+        if self.finish in internal_article_list:
+            quantity = internal_article_list.count(self.finish)
+            db_alchemy.create_article_with_params(name=self.finish, depth=self.current_depth,
+                                                  id_where_find=article_id, count_incoming_links=quantity)
 
-        # if self.finish in internal_article_list:
-        #     quantity = internal_article_list.count(self.finish)
-        #     db_alchemy.create_article_with_params(name=self.finish, depth=self.current_depth,
-        #                                           id_where_find=article_id, count_incoming_links=quantity)
+            loop = asyncio.get_running_loop()
+            loop.stop()
+            loop.close()
 
         # Перебираем список статей, подсчитывам количество каждой статьи в списке
         # Проверяеем статью на наличие в БД и если нету создаем
